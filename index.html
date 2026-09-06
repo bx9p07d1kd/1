@@ -77,7 +77,9 @@
     //   标题 | 链接 | 标签1,标签2 | 描述
     let resources = [];   // 存解析出来的全部资源
 
-    fetch('data.txt')
+    // 加个时间戳 ?t=xxx，让浏览器每次打开都把它当成"新文件"，
+    // 强制去拿最新版 data.txt，不再用缓存的旧数据。
+    fetch('data.txt?t=' + Date.now())
       .then(function (r) { return r.text(); })
       .then(function (text) {
         // 按行切开，去掉空行，每行按 | 切成 标题/链接/标签/描述
