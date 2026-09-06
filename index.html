@@ -56,15 +56,31 @@
 
   <script>
     // ============ 数据加载 ============
-    // 所有资源存在 data.json 里，这里用 fetch 读进来。
+    // 所有资源存在 data.txt 里，每行一条，用竖线 | 分隔：
+    //   标题 | 链接 | 标签1,标签2 | 描述
+    // 用这种简单格式，是为了你以后加资源时直接"加一行字"就行，不用管括号、引号、逗号。
     // 注意：纯静态方案里，数据就在前端，懂技术的人按 F12 能看到 —— 这是"路 A"已接受的让步。
-    let resources = [];   // 存读进来的全部资源
+    let resources = [];   // 存解析出来的全部资源
 
-    fetch('data.json')
-      .then(function (r) { return r.json(); })
-      .then(function (data) { resources = data; })
+    fetch('data.txt')
+      .then(function (r) { return r.text(); })
+      .then(function (text) {
+        // 按行切开，去掉空行，每行按 | 切成 标题/链接/标签/描述
+        resources = text.split('\n')
+          .map(function (line) { return line.trim(); })
+          .filter(function (line) { return line.length > 0; })
+          .map(function (line) {
+            var parts = line.split('|');
+            return {
+              title: (parts[0] || '').trim(),
+              url: (parts[1] || '').trim(),
+              tags: (parts[2] || '').split(',').map(function (t) { return t.trim(); }).filter(function (t) { return t.length > 0; }),
+              desc: (parts[3] || '').trim()
+            };
+          });
+      })
       .catch(function () {
-        document.getElementById('results').innerHTML = '<div class="empty">数据加载失败，请检查 data.json</div>';
+        document.getElementById('results').innerHTML = '<div class="empty">数据加载失败，请检查 data.txt</div>';
       });
 
     // ============ 搜索逻辑 ============
