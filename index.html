@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资源搜索</title>
+  <style>
+    /* 简洁的样式，想换主题就改这里 */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f6f8;
+      color: #333;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 40px 20px; }
+    h1 { text-align: center; font-size: 28px; margin-bottom: 28px; color: #1a1a1a; }
+    .search-box { display: flex; gap: 10px; margin-bottom: 12px; }
+    #keyword {
+      flex: 1; padding: 12px 16px; font-size: 16px;
+      border: 2px solid #ddd; border-radius: 8px; outline: none;
+    }
+    #keyword:focus { border-color: #4a90d9; }
+    #search-btn {
+      padding: 12px 24px; font-size: 16px; border: none;
+      background: #4a90d9; color: #fff; border-radius: 8px; cursor: pointer;
+    }
+    #search-btn:hover { background: #357abd; }
+    .tip { text-align: center; color: #aaa; font-size: 13px; margin-bottom: 20px; }
+    .item {
+      background: #fff; border-radius: 10px; padding: 18px 20px; margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .item h3 { font-size: 18px; margin-bottom: 6px; }
+    .item h3 a { color: #1a1a1a; text-decoration: none; }
+    .item h3 a:hover { color: #4a90d9; }
+    .item .desc { font-size: 14px; color: #666; margin-bottom: 10px; }
+    .item .meta { font-size: 13px; color: #999; }
+    .tag {
+      display: inline-block; background: #eef4fb; color: #4a90d9;
+      padding: 2px 10px; border-radius: 20px; font-size: 12px; margin-right: 6px;
+    }
+    .empty { text-align: center; color: #aaa; padding: 40px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🔍 资源搜索</h1>
+    <div class="search-box">
+      <input type="text" id="keyword" placeholder="输入关键词搜索资源…" autofocus>
+      <button id="search-btn">搜索</button>
+    </div>
+    <div class="tip">多个关键词用空格隔开，例如：电影 4K</div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    // ============ 数据加载 ============
+    // 所有资源存在 data.json 里，这里用 fetch 读进来。
+    // 注意：纯静态方案里，数据就在前端，懂技术的人按 F12 能看到 —— 这是"路 A"已接受的让步。
+    let resources = [];   // 存读进来的全部资源
+
+    fetch('data.json')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { resources = data; })
+      .catch(function () {
+        document.getElementById('results').innerHTML = '<div class="empty">数据加载失败，请检查 data.json</div>';
+      });
+
+    // ============ 搜索逻辑 ============
+    // 支持多个关键词（空格分隔），必须【全部命中】才返回。
+    // 匹配范围：标题、标签、描述。
+    function search(kw) {
+      var words = kw.trim().toLowerCase().split(/\s+/).filter(function (w) { return w.length > 0; });
+      if (!words.length) return [];
+      return resources.filter(function (item) {
+        var text = (item.title + ' ' + (item.tags || []).join(' ') + ' ' + (item.desc || '')).toLowerCase();
+        return words.every(function (w) { return text.indexOf(w) !== -1; });
+      });
+    }
+
+    // ============ 页面渲染 ============
+    // 把用户输入里的特殊字符转义，防止标题里带 <script> 之类的东西被当成代码执行
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    var input = document.getElementById('keyword');
+    var btn = document.getElementById('search-btn');
+    var resultsBox = document.getElementById('results');
+
+    function doSearch() {
+      var kw = input.value.trim();
+      if (!kw) { resultsBox.innerHTML = ''; return; }
+      var items = search(kw).slice(0, 50);  // 最多显示 50 条
+      render(items);
+    }
+
+    function render(items) {
+      if (!items.length) {
+        resultsBox.innerHTML = '<div class="empty">没有找到相关资源，换个关键词试试</div>';
+        return;
+      }
+      var html = '';
+      items.forEach(function (it) {
+        var tags = (it.tags || []).map(function (t) {
+          return '<span class="tag">' + escapeHtml(t) + '</span>';
+        }).join('');
+        html += '<div class="item">' +
+          '<h3><a href="' + escapeHtml(it.url) + '" target="_blank" rel="noopener">' + escapeHtml(it.title) + '</a></h3>' +
+          (it.desc ? '<div class="desc">' + escapeHtml(it.desc) + '</div>' : '') +
+          '<div class="meta">' + tags + ' <span>' + escapeHtml(it.date || '') + '</span></div>' +
+          '</div>';
+      });
+      resultsBox.innerHTML = html;
+    }
+
+    // 点按钮搜索
+    btn.addEventListener('click', doSearch);
+    // 按回车搜索
+    input.addEventListener('keyup', function (e) {
+      if (e.key === 'Enter') doSearch();
+    });
+  </script>
+</body>
+</html>
