@@ -35,11 +35,28 @@
     .item h3 a { color: #1a1a1a; text-decoration: none; }
     .item h3 a:hover { color: #4a90d9; }
     .item .desc { font-size: 14px; color: #666; margin-bottom: 10px; }
-    .item .meta { font-size: 13px; color: #999; }
+    /* 底部一行：网盘标签 + 资源标签 + 复制按钮，用 flex 排成一行 */
+    .meta {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+      font-size: 13px; color: #999;
+    }
     .tag {
       display: inline-block; background: #eef4fb; color: #4a90d9;
-      padding: 2px 10px; border-radius: 20px; font-size: 12px; margin-right: 6px;
+      padding: 2px 10px; border-radius: 20px; font-size: 12px;
     }
+    /* 网盘类型标签：橙色，和蓝色资源标签区分开 */
+    .pan-tag {
+      display: inline-block; background: #fff4e6; color: #d97a00;
+      padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    }
+    /* 复制链接按钮：靠右，用 margin-left:auto 推到每行最右 */
+    .copy-btn {
+      margin-left: auto;
+      padding: 4px 12px; font-size: 12px;
+      border: 1px solid #ddd; background: #fff; color: #4a90d9;
+      border-radius: 6px; cursor: pointer; white-space: nowrap;
+    }
+    .copy-btn:hover { background: #eef4fb; border-color: #4a90d9; }
     .empty { text-align: center; color: #aaa; padding: 40px 0; }
   </style>
 </head>
@@ -58,8 +75,6 @@
     // ============ 数据加载 ============
     // 所有资源存在 data.txt 里，每行一条，用竖线 | 分隔：
     //   标题 | 链接 | 标签1,标签2 | 描述
-    // 用这种简单格式，是为了你以后加资源时直接"加一行字"就行，不用管括号、引号、逗号。
-    // 注意：纯静态方案里，数据就在前端，懂技术的人按 F12 能看到 —— 这是"路 A"已接受的让步。
     let resources = [];   // 存解析出来的全部资源
 
     fetch('data.txt')
@@ -83,6 +98,23 @@
         document.getElementById('results').innerHTML = '<div class="empty">数据加载失败，请检查 data.txt</div>';
       });
 
+    // ============ 网盘类型识别 ============
+    // 根据链接的域名，自动判断是哪种网盘。以后想加新的网盘，往这里加一行就行。
+    function detectPan(url) {
+      var m = url.match(/https?:\/\/([^\/]+)/i);  // 提取链接里的域名部分
+      var host = m ? m[1].toLowerCase() : '';
+      if (host.indexOf('quark.cn') !== -1) return '夸克网盘';
+      if (host.indexOf('xunlei.com') !== -1) return '迅雷云盘';
+      if (host.indexOf('baidu.com') !== -1) return '百度网盘';
+      if (host.indexOf('aliyundrive.com') !== -1 || host.indexOf('alipan.com') !== -1) return '阿里云盘';
+      if (host.indexOf('123pan.com') !== -1) return '123云盘';
+      if (host.indexOf('lanzou') !== -1) return '蓝奏云';
+      if (host.indexOf('weiyun.com') !== -1) return '微云';
+      if (host.indexOf('189.cn') !== -1) return '天翼云盘';
+      if (host.indexOf('115.com') !== -1) return '115网盘';
+      return '其他网盘';
+    }
+
     // ============ 搜索逻辑 ============
     // 支持多个关键词（空格分隔），必须【全部命中】才返回。
     // 匹配范围：标题、标签、描述。
@@ -93,6 +125,45 @@
         var text = (item.title + ' ' + (item.tags || []).join(' ') + ' ' + (item.desc || '')).toLowerCase();
         return words.every(function (w) { return text.indexOf(w) !== -1; });
       });
+    }
+
+    // ============ 复制链接 ============
+    // 把指定链接复制到剪贴板，成功后按钮短暂显示"已复制"。
+    function copyText(text, btn) {
+      // 优先用新版剪贴板 API（GitHub Pages 是 https，可用）
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          showCopied(btn);
+        }).catch(function () {
+          fallbackCopy(text, btn);  // 失败就退回老办法
+        });
+      } else {
+        fallbackCopy(text, btn);
+      }
+    }
+
+    // 兼容旧浏览器：用临时 textarea + execCommand 复制
+    function fallbackCopy(text, btn) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showCopied(btn);
+      } catch (e) {
+        alert('复制失败，请手动复制链接');
+      }
+      document.body.removeChild(ta);
+    }
+
+    // 按钮短暂变成"已复制"，1.5 秒后恢复
+    function showCopied(btn) {
+      var old = btn.textContent;
+      btn.textContent = '已复制 ✓';
+      setTimeout(function () { btn.textContent = old; }, 1500);
     }
 
     // ============ 页面渲染 ============
@@ -124,17 +195,31 @@
       }
       var html = '';
       items.forEach(function (it) {
+        // 资源标签（蓝色）
         var tags = (it.tags || []).map(function (t) {
           return '<span class="tag">' + escapeHtml(t) + '</span>';
         }).join('');
+        // 网盘标签（橙色）+ 资源标签 + 复制按钮
         html += '<div class="item">' +
           '<h3><a href="' + escapeHtml(it.url) + '" target="_blank" rel="noopener">' + escapeHtml(it.title) + '</a></h3>' +
           (it.desc ? '<div class="desc">' + escapeHtml(it.desc) + '</div>' : '') +
-          '<div class="meta">' + tags + ' <span>' + escapeHtml(it.date || '') + '</span></div>' +
+          '<div class="meta">' +
+            '<span class="pan-tag">' + detectPan(it.url) + '</span>' +
+            tags +
+            '<button class="copy-btn" data-url="' + escapeHtml(it.url) + '">复制链接</button>' +
+          '</div>' +
           '</div>';
       });
       resultsBox.innerHTML = html;
     }
+
+    // 事件委托：点击"复制链接"按钮时，取出按钮上存的链接去复制
+    resultsBox.addEventListener('click', function (e) {
+      var target = e.target;
+      if (target.classList && target.classList.contains('copy-btn')) {
+        copyText(target.getAttribute('data-url'), target);
+      }
+    });
 
     // 点按钮搜索
     btn.addEventListener('click', doSearch);
